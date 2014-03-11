@@ -22,19 +22,16 @@ def get_table(table, key, more=None):
         data[rda[key]] = rda
     return data
 
-def more_schedule(rda, row):
+def more_id(rda, row):
     ids = row['class'][-1].split('-')[-1]
     try:
         id = int(ids)
     except:
         return
-    print row['class'], ids, id
-    rda['2014-schedule'] = get_schedule(id)
-    rda['2013-schedule'] = get_schedule(id, 2013)
     rda['TEAM_ID'] = id
 
-def get_sos():
-    return get_pages('http://espn.go.com/mens-college-basketball/rpi/_/year/2013/sort/sos', more_schedule)
+def get_sos(year=2014):
+    return get_pages('http://espn.go.com/mens-college-basketball/rpi/_/year/{}/sort/sos'.format(year), more_id)
 
 def get_page(link, more=None):
     print 'getting', link
@@ -42,7 +39,7 @@ def get_page(link, more=None):
     # get the next link
     numbers = b.find('div', {'class': 'page-numbers'})
     next = numbers.next_sibling
-    while next.name not in ('a', 'div'):
+    while not hasattr(next, 'name') or next.name not in ('a', 'div'):
         next = next.next_sibling
     table = b.find('table', {'class': 'tablehead'})
     data = get_table(table, u'TEAM', more)
@@ -63,39 +60,19 @@ def get_pages(link, more=None):
 def gs(what):
     return ' '.join(what.strings)
 
-def get_schedule(id, year=None):
-    base = 'http://espn.go.com/mens-college-basketball/team/schedule/_/id/{}/'
-    if year:
-        base += 'year/%s/' % year
-    print 'getting schedule', base.format(id)
-    b.open(base.format(id))
-    table = b.find('div', {'id': 'showschedule'}).find('table')
-    data = {}
-    for row in table('tr'):
-        if 'oddrow' not in row['class'] and 'evenrow' not in row['class']: continue
-        name = row.find('li', {'class': 'team-name'})
-        score = row.find('li', {'class': 'score'})
-        if not name or not score: continue
-        data[gs(name)] = gs(score)
-    print ' > got', len(data)
-    return data
+def getId(haslinks):
+    a = haslinks.find('a')
+    if not a:
+        print haslinks
+        return False
+    return int(a['href'].split('/id/')[1].split('/')[0])
 
-'''
-    for i in range(i, number):
-        lnk = link.format('page/%d/' % i)
-        print lnk
-        b.open(lnk)
-        table = b.find('table', {'class': 'tablehead'})
-        data.update(get_table(table, 'TEAM'))
-    return data
-    '''
-
-def get_stats():
+def get_stats(year):
     stats = ['scoring-per-game', 'rebounds', 'free-throws', '3-points', 'assists', 'steals', 'blocks']
-    base = 'http://espn.go.com/mens-college-basketball/statistics/team/_/stat/{}/year/2013'
+    base = 'http://espn.go.com/mens-college-basketball/statistics/team/_/stat/{}/year/{}'
     data = {}
     for stat in stats:
-        for k, row in get_pages(base.format(stat)).items():
+        for k, row in get_pages(base.format(stat, year), more_id).items():
             if k not in data:
                 data[k] = row
             else:
@@ -104,8 +81,9 @@ def get_stats():
 
 b = RoboBrowser(history=True)
 
-def do_this():
+def do_this(what):
     getters = [get_sos, get_stats]
+    getters.pop(0 if what else 1)
     data = {}
     for getter in getters:
         for k, row in getter().items():
@@ -115,7 +93,26 @@ def do_this():
                 data[k].update(row)
     return data
 
-raw = json.dumps(do_this())
-open('scheduled.json', 'w').write(raw)
+# raw = json.dumps(do_this(False))
+# open('sched-id.json', 'w').write(raw)
+
+def save_stats(year):
+    fname = 'stats_{}.json'.format(year)
+    print 'getting', fname
+    raw = json.dumps(get_stats(year))
+    open(fname, 'w').write(raw)
+
+
+def save_sos(year):
+    fname = 'sos_{}.json'.format(year)
+    print 'getting', fname
+    raw = json.dumps(get_sos(year))
+    open(fname, 'w').write(raw)
+
+def main():
+    [save_stats(year) for year in range(2010, 2015)]
+    # [save_sos(year) for year in range(2010, 2015)]
+
+main()
 
 # vim: et sw=4 sts=4
