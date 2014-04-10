@@ -2,3 +2,4 @@
 *.csv
 *.arff
 *.swp
+*.pyc
